@@ -1,6 +1,13 @@
+/**
+   Author: Colin Bernstein
+   Title: Nixie Tube Multimeter
+*/
+
 #include "Wire.h"
 #include <Adafruit_INA219.h>
 
+//A numerical value and an encoded value
+//representing which (or whether both) of the commas are enabled on a tube
 struct cathodeData {
   byte curr;
   byte comma;
@@ -8,8 +15,10 @@ struct cathodeData {
 
 Adafruit_INA219 ina219;
 
-const byte A = 2, B = 3, C = 4, D = 5, commaL = 13, commaR = 7, modePin = 6, Vdd = 8,
-           N[] = {12, 11, 10, 9}, clean[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, cleanSymbolic[] = {1, 2, 3, 4, 6, 0, 9}, measureDelay = 100;
+//Define GPIO pins and local variables
+const byte A = 2, B = 3, C = 4, D = 5, commaL = 13, commaR = 7,
+           modePin = 6, Vdd = 8, N[] = {12, 11, 10, 9}, clean[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
+                                       cleanSymbolic[] = {1, 2, 3, 4, 6, 0, 9}, measureDelay = 100;
 
 unsigned long lastTest, lastCPP, timePressed, ohms, lastMeasurement;
 float currV, currI;
@@ -18,6 +27,7 @@ cathodeData curr1, curr2, curr3, curr4;
 byte mode = 0;
 boolean holding, currVdd, flip;
 
+//Initialize GPIOs and I2C voltage and current sensor
 void setup() {
   Wire.begin();
   pinMode(A, OUTPUT);
@@ -33,10 +43,12 @@ void setup() {
   ina219.begin();
   test();
 }
+
+//Multiplex each tube constantly unless it is time to perform cathode poisoning prevention
+//Check for button presses
 void loop() {
   multPlex();
   if (millis() - lastTest >= (mode < 2 ? 25 : 25)) {
-    //blank();
     test();
   }
   if (millis() - timePressed >= 50)
@@ -45,6 +57,7 @@ void loop() {
     cathodePoisoningPrevention();
 }
 
+//Write the binary encoded decimal to the high voltage cathode controller
 void binOut(cathodeData data, byte stage) {
   digitalWrite(N[stage - 1], LOW);
   blank();
@@ -60,6 +73,7 @@ void binOut(cathodeData data, byte stage) {
   delayMicroseconds(700);
 }
 
+//Flash each of the tubes from left to right being sure to not have any invalid crossover
 void multPlex() {
   binOut(curr1, 0);
   binOut(curr2, 1);
@@ -68,6 +82,7 @@ void multPlex() {
   digitalWrite(N[3], LOW);
 }
 
+//Update the stored values of each tube's digits
 void refresh(byte number, byte comma, byte stage) {
   switch (stage) {
     case 1: curr1.curr = number; curr1.comma = comma; break;
@@ -77,6 +92,7 @@ void refresh(byte number, byte comma, byte stage) {
   }
 }
 
+//Derive the measured voltage and current 
 void test() {
   lastTest = millis();
   if (mode == 0) {
@@ -200,6 +216,7 @@ void test() {
   }
 }
 
+//Deliver source voltage for resistance and conductance tests 
 void deliverSourceVoltage(boolean on) {
   if (currVdd != on) {
     currVdd = on;
@@ -241,6 +258,7 @@ float readOhmmeter() {
   return currV / currI;
 }
 
+//Run direct current through each of the cathodes for a long period at a time in an elegant pattern
 void cathodePoisoningPrevention() {
   lastCPP = millis();
   for (byte a = 0; a < 4; a++)
@@ -281,6 +299,7 @@ void cathodePoisoningPrevention() {
     digitalWrite(N[a], LOW);
 }
 
+//Blank a nixie tube
 void blank() {
   digitalWrite(A, HIGH);
   digitalWrite(B, HIGH);
@@ -290,6 +309,7 @@ void blank() {
   digitalWrite(commaR, LOW);
 }
 
+//Check for button press and cycle modes and valeus accordingly
 void checkButton() {
   if (!digitalRead(modePin) && !holding) {
     timePressed = millis();
